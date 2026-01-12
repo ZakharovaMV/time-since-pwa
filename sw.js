@@ -1,5 +1,5 @@
-// Simple cache-first service worker
 const CACHE_NAME = "time-since-pwa-v2";
+
 const ASSETS = [
   "./",
   "./index.html",
@@ -29,13 +29,15 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
+
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
+
       return fetch(req).then((resp) => {
         if (req.method === "GET" && resp && resp.status === 200) {
-          const respClone = resp.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, respClone));
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
         }
         return resp;
       }).catch(() => caches.match("./index.html"));
