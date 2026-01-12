@@ -1,5 +1,5 @@
 // Simple cache-first service worker
-const CACHE_NAME = "time-since-pwa-v1";
+const CACHE_NAME = "time-since-pwa-v2";
 const ASSETS = [
   "./",
   "./index.html",
