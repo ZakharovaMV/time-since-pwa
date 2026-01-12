@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>Сколько прошло с даты</title>
+
   <style>
     :root { font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial, sans-serif; }
     body { margin: 0; background: #f6f6f7; color: #111; }
@@ -26,8 +27,10 @@
     .hint { font-size: 12px; color: #666; margin-top: 10px; line-height: 1.35; }
     .warn { margin-top: 12px; color: #a00000; font-size: 13px; display: none; }
     button { margin-top: 12px; width: 100%; border: 0; border-radius: 12px; padding: 12px; font-size: 16px; }
+    .row2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="card">
@@ -40,6 +43,11 @@
         </div>
       </div>
 
+      <div class="row2">
+        <button type="button" id="nowBtn">Поставить дату: сейчас</button>
+        <button type="button" id="clearBtn">Сбросить сохранение</button>
+      </div>
+
       <div class="grid" id="results">
         <div class="item"><div class="k">Годы</div><div class="v" id="years">—</div></div>
         <div class="item"><div class="k">Месяцы</div><div class="v" id="months">—</div></div>
@@ -49,24 +57,26 @@
         <div class="item"><div class="k">Всего минут</div><div class="v" id="totalMinutes">—</div></div>
       </div>
 
-      <div class="warn" id="futureWarn">Вы выбрали дату в будущем — “сколько прошло” будет 0.</div>
-
-      <button type="button" id="nowBtn">Поставить дату: сейчас</button>
+      <div class="warn" id="futureWarn">
+        Вы выбрали дату в будущем — “сколько прошло” будет 0.
+      </div>
 
       <div class="hint">
-        Подсчёт “годы/месяцы/дни” идёт по календарю (как обычно считают возраст/стаж),
-        а “всего дней/часов/минут” — по точной разнице во времени.
+        “Годы/месяцы/дни” считаются по календарю, а “всего дней/часов/минут” — по точной разнице.
+        Дата сохраняется на устройстве и не сбрасывается после обновления.
       </div>
     </div>
   </div>
 
   <script>
-    // Register Service Worker (offline)
+    // PWA offline
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       });
     }
+
+    const STORAGE_KEY = "time_since_selected_dt";
 
     const dt = document.getElementById('dt');
     const futureWarn = document.getElementById('futureWarn');
@@ -82,11 +92,21 @@
 
     function pad(n){ return String(n).padStart(2,'0'); }
 
-    function nowLocalValue() {
-      const d = new Date();
+    function formatForDatetimeLocal(d) {
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
+    function yesterdayLocalValue() {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return formatForDatetimeLocal(d);
+    }
+
+    function nowLocalValue() {
+      return formatForDatetimeLocal(new Date());
+    }
+
+    // Календарная разница: годы/месяцы/дни
     function calendarDiff(start, end) {
       let y = end.getFullYear() - start.getFullYear();
       let m = end.getMonth() - start.getMonth();
@@ -102,6 +122,7 @@
         y -= 1;
       }
       if (y < 0) y = m = d = 0;
+
       return { years: y, months: m, days: d };
     }
 
@@ -136,23 +157,43 @@
       out.years.textContent = cal.years;
       out.months.textContent = cal.months;
       out.days.textContent = cal.days;
+
       out.totalDays.textContent = totalDays;
       out.totalHours.textContent = totalHours;
       out.totalMinutes.textContent = totalMinutes;
     }
 
-    document.getElementById('nowBtn').addEventListener('click', () => {
-      dt.value = nowLocalValue();
+    // ✅ сохраняем дату при изменении
+    dt.addEventListener('input', () => {
+      localStorage.setItem(STORAGE_KEY, dt.value);
       update();
     });
 
-    dt.addEventListener('input', update);
-
-    (function init(){
-      const d = new Date();
-      d.setDate(d.getDate() - 1);
-      dt.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    document.getElementById('nowBtn').addEventListener('click', () => {
+      dt.value = nowLocalValue();
+      localStorage.setItem(STORAGE_KEY, dt.value);
       update();
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      localStorage.removeItem(STORAGE_KEY);
+      dt.value = yesterdayLocalValue();
+      localStorage.setItem(STORAGE_KEY, dt.value);
+      update();
+      alert("Сохранённая дата сброшена.");
+    });
+
+    // ✅ старт: берём сохранённую дату, иначе ставим “вчера”
+    (function init(){
+      const saved = localStorage.getItem(STORAGE_KEY);
+      dt.value = (saved && saved.length) ? saved : yesterdayLocalValue();
+
+      // Если это первый запуск — сразу сохраним
+      if (!saved) localStorage.setItem(STORAGE_KEY, dt.value);
+
+      update();
+
+      // 🔁 обновляем только вычисления — не меняем dt.value
       setInterval(update, 1000);
     })();
   </script>
